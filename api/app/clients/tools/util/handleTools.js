@@ -20,6 +20,7 @@ const {
   Permissions,
   EToolResources,
   PermissionTypes,
+  AgentCapabilities,
 } = require('librechat-data-provider');
 const {
   availableTools,
@@ -49,7 +50,7 @@ const { createFileSearchTool, primeFiles: primeSearchFiles } = require('./fileSe
 const { primeFiles: primeCodeFiles } = require('~/server/services/Files/Code/process');
 const { getUserPluginAuthValue } = require('~/server/services/PluginService');
 const { loadAuthValues } = require('~/server/services/Tools/credentials');
-const { getMCPServerTools } = require('~/server/services/Config');
+const { getMCPServerTools, checkCapability } = require('~/server/services/Config');
 const { getMCPServersRegistry } = require('~/config');
 const { getRoleByName, setMemory, deleteMemory, getFormattedMemories } = require('~/models');
 
@@ -299,10 +300,19 @@ const loadTools = async ({
         if (files?.length) {
           primedCodeFiles = files;
         }
+        /* Hedge the execute_code description toward persistence only when the
+         * admin `stateful_code_sessions` capability is on (off by default); the
+         * matching wire hint is set in the run config. Older @librechat/agents
+         * ignore the param. */
+        const statefulSessions = await checkCapability(
+          options.req,
+          AgentCapabilities.stateful_code_sessions,
+        );
         return createCodeExecutionTool({
           user_id: user,
           files,
           authHeaders: () => getCodeApiAuthHeaders(options.req),
+          statefulSessions,
         });
       };
       continue;
